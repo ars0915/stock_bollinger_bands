@@ -17,8 +17,8 @@ import (
 )
 
 type StockRespBody struct {
-	Statuscode int    `json:"statusCode"`
-	Message    string `json:"message"`
+	Statuscode int       `json:"statusCode"`
+	Message    string    `json:"message"`
 	Data       StockData `json:"data"`
 }
 
@@ -45,7 +45,7 @@ const (
 var (
 	listUrl = "https://www.cnyes.com/twstock/stock_astock.aspx"
 	baseUrl = "https://www.cnyes.com/twstock/"
-	apiUrl = "https://ws.api.cnyes.com/ws/api/v1/charting/history?resolution=D&symbol=TWS:%d:STOCK&from=%d&to=%d"
+	apiUrl  = "https://ws.api.cnyes.com/ws/api/v1/charting/history?resolution=D&symbol=TWS:%d:STOCK&from=%d&to=%d"
 )
 
 func Run() []int {
@@ -79,7 +79,7 @@ func getTargetList(targetChan <-chan int, done <-chan bool) []int {
 	}
 }
 
-func getGroupList() map[string]string{
+func getGroupList() map[string]string {
 	b, err := request(listUrl)
 	if err != nil {
 		log.Fatal("get group list err")
@@ -105,7 +105,7 @@ func getGroupList() map[string]string{
 	return data
 }
 
-func findTickersByGroup(groupList map[string]string, targetChan chan<- int, done chan <- bool) {
+func findTickersByGroup(groupList map[string]string, targetChan chan<- int, done chan<- bool) {
 	var wg sync.WaitGroup
 	wg.Add(len(groupList))
 
@@ -166,7 +166,7 @@ func findTargetTickers(tickers []int, targetChan chan<- int) {
 
 		var stockBody StockRespBody
 		if err := json.Unmarshal(res, &stockBody); err != nil {
-			log.Printf("[%d] json unmarshal failed\n", i)
+			log.Printf("[%d] json unmarshal failed, from:%v, to:%v\n", i, from, to)
 			continue
 		}
 
@@ -178,7 +178,7 @@ func findTargetTickers(tickers []int, targetChan chan<- int) {
 		closes := stockBody.Data.C[:malen]
 		bbL, _ := calBB(closes)
 
-		h := bbL + nearParam * bbL
+		h := bbL + nearParam*bbL
 
 		if todayClose <= h {
 			targetChan <- i
@@ -195,13 +195,12 @@ func calBB(data []float64) (float64, float64) {
 
 	var variance float64
 	for _, v := range data {
-		variance += math.Pow(v - ma, 2)
+		variance += math.Pow(v-ma, 2)
 	}
 
 	sigma := math.Sqrt(variance / malen)
 	return ma - 2*sigma, ma + 2*sigma
 }
-
 
 func request(url string) ([]byte, error) {
 	var respBody []byte
