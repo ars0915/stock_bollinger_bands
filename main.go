@@ -19,21 +19,20 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+
+	"github.com/ars0915/stock_bollinger_bands/bollinger_bands"
 )
 
 var clientID string
 var clientSecret string
 var callbackURL string
-var token string
+var tokens []string
 
 func main() {
 	http.HandleFunc("/callback", callbackHandler)
 	http.HandleFunc("/notify", notifyHandler)
 	http.HandleFunc("/auth", authHandler)
-	//clientID = "m0E2Hph3CbgFquSPz2ICCZ"
-	//clientSecret = "XeiPP1CQNvrUXbYq7pybRy9o09CbiGntuYlT6xktTsN"
-	//callbackURL = "http://1bd6e3dea7a5.ngrok.io/callback"
-	//port := "3000"
+	http.HandleFunc("/stock", stockHandler)
 	clientID = os.Getenv("ClientID")
 	clientSecret = os.Getenv("ClientSecret")
 	callbackURL = os.Getenv("CallbackURL")
@@ -41,6 +40,22 @@ func main() {
 	fmt.Printf("ENV port:%s, cid:%s csecret:%s\n", port, clientID, clientSecret)
 	addr := fmt.Sprintf(":%s", port)
 	http.ListenAndServe(addr, nil)
+}
+
+func stockHandler(w http.ResponseWriter, r *http.Request) {
+	targets := bollinger_bands.Run()
+
+	data := url.Values{}
+	data.Add("message", fmt.Sprintf("%v", targets))
+
+	for _, token := range tokens {
+		byt, err := apiCall("POST", apiNotify, data, token)
+		fmt.Println("ret:", string(byt), " err:", err)
+
+		res := newTokenResponse(byt)
+		fmt.Println("result:", res)
+		w.Write(byt)
+	}
 }
 
 func notifyHandler(w http.ResponseWriter, r *http.Request) {
@@ -51,13 +66,14 @@ func notifyHandler(w http.ResponseWriter, r *http.Request) {
 	data := url.Values{}
 	data.Add("message", msg)
 
-	byt, err := apiCall("POST", apiNotify, data, token)
-	fmt.Println("ret:", string(byt), " err:", err)
+	for _, token := range tokens {
+		byt, err := apiCall("POST", apiNotify, data, token)
+		fmt.Println("ret:", string(byt), " err:", err)
 
-	res := newTokenResponse(byt)
-	fmt.Println("result:", res)
-	token = res.AccessToken
-	w.Write(byt)
+		res := newTokenResponse(byt)
+		fmt.Println("result:", res)
+		w.Write(byt)
+	}
 }
 
 func callbackHandler(w http.ResponseWriter, r *http.Request) {
@@ -78,7 +94,7 @@ func callbackHandler(w http.ResponseWriter, r *http.Request) {
 
 	res := newTokenResponse(byt)
 	fmt.Println("result:", res)
-	token = res.AccessToken
+	tokens = append(tokens, res.AccessToken)
 	w.Write(byt)
 }
 func authHandler(w http.ResponseWriter, r *http.Request) {

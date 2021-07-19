@@ -48,7 +48,7 @@ var (
 	apiUrl = "https://ws.api.cnyes.com/ws/api/v1/charting/history?resolution=D&symbol=TWS:%d:STOCK&from=%d&to=%d"
 )
 
-func main() {
+func Run() []int {
 	var wg sync.WaitGroup
 	done := make(chan bool)
 	targetChan := make(chan int)
@@ -64,7 +64,7 @@ func main() {
 	findTickersByGroup(groupList, targetChan, done)
 
 	wg.Wait()
-	fmt.Println(targets)
+	return targets
 }
 
 func getTargetList(targetChan <-chan int, done <-chan bool) []int {
