@@ -18,6 +18,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 )
 
 var clientID string
@@ -29,14 +30,14 @@ func main() {
 	http.HandleFunc("/callback", callbackHandler)
 	http.HandleFunc("/notify", notifyHandler)
 	http.HandleFunc("/auth", authHandler)
-	clientID = "m0E2Hph3CbgFquSPz2ICCZ"
-	clientSecret = "XeiPP1CQNvrUXbYq7pybRy9o09CbiGntuYlT6xktTsN"
-	callbackURL = "https://bollinger-bands.herokuapp.com/callback"
-	port := "80"
-	//clientID = os.Getenv("ClientID")
-	//clientSecret = os.Getenv("ClientSecret")
-	//callbackURL = os.Getenv("CallbackURL")
-	//port := os.Getenv("PORT")
+	//clientID = "m0E2Hph3CbgFquSPz2ICCZ"
+	//clientSecret = "XeiPP1CQNvrUXbYq7pybRy9o09CbiGntuYlT6xktTsN"
+	//callbackURL = "http://1bd6e3dea7a5.ngrok.io/callback"
+	//port := "3000"
+	clientID = os.Getenv("ClientID")
+	clientSecret = os.Getenv("ClientSecret")
+	callbackURL = os.Getenv("CallbackURL")
+	port := os.Getenv("PORT")
 	fmt.Printf("ENV port:%s, cid:%s csecret:%s\n", port, clientID, clientSecret)
 	addr := fmt.Sprintf(":%s", port)
 	http.ListenAndServe(addr, nil)
