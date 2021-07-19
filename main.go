@@ -1,230 +1,99 @@
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package main
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"log"
-	"math"
 	"net/http"
-	"strconv"
-	"sync"
-	"time"
+	"net/url"
+	"os"
 
-	"github.com/PuerkitoBio/goquery"
-	"github.com/pkg/errors"
+	"html/template"
 )
 
-type StockRespBody struct {
-	Statuscode int    `json:"statusCode"`
-	Message    string `json:"message"`
-	Data       StockData `json:"data"`
-}
-
-type StockData struct {
-	S        string      `json:"s"`
-	T        []int       `json:"t"`
-	O        []float64   `json:"o"`
-	H        []float64   `json:"h"`
-	L        []float64   `json:"l"`
-	C        []float64   `json:"c"`
-	V        []float64   `json:"v"`
-	Vwap     []float64   `json:"vwap"`
-	Quote    interface{} `json:"quote"`
-	Session  [][]int     `json:"session"`
-	Nexttime interface{} `json:"nextTime"`
-}
-
-const (
-	malen = 20
-
-	nearParam = 2 * 0.01 * 0.01
-)
-
-var (
-	listUrl = "https://www.cnyes.com/twstock/stock_astock.aspx"
-	baseUrl = "https://www.cnyes.com/twstock/"
-	apiUrl = "https://ws.api.cnyes.com/ws/api/v1/charting/history?resolution=D&symbol=TWS:%d:STOCK&from=%d&to=%d"
-)
+var clientID string
+var clientSecret string
+var callbackURL string
+var token string
 
 func main() {
-	var wg sync.WaitGroup
-	done := make(chan bool)
-	targetChan := make(chan int)
-
-	var targets []int
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		targets = getTargetList(targetChan, done)
-	}()
-
-	groupList := getGroupList()
-	findTickersByGroup(groupList, targetChan, done)
-
-	wg.Wait()
-	fmt.Println(targets)
+	http.HandleFunc("/callback", callbackHandler)
+	http.HandleFunc("/notify", notifyHandler)
+	http.HandleFunc("/auth", authHandler)
+	clientID = os.Getenv("ClientID")
+	clientSecret = os.Getenv("ClientSecret")
+	callbackURL = os.Getenv("CallbackURL")
+	port := os.Getenv("PORT")
+	fmt.Printf("ENV port:%s, cid:%s csecret:%s\n", port, clientID, clientSecret)
+	addr := fmt.Sprintf(":%s", port)
+	http.ListenAndServe(addr, nil)
 }
 
-func getTargetList(targetChan <-chan int, done <-chan bool) []int {
-	var result []int
-	for {
-		select {
-		case t := <-targetChan:
-			result = append(result, t)
-		case <-done:
-			return result
-		}
-	}
+func notifyHandler(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm() // Populates request.Form
+	msg := r.Form.Get("msg")
+	fmt.Printf("Get msg=%s\n", msg)
+
+	data := url.Values{}
+	data.Add("message", msg)
+
+	byt, err := apiCall("POST", apiNotify, data, token)
+	fmt.Println("ret:", string(byt), " err:", err)
+
+	res := newTokenResponse(byt)
+	fmt.Println("result:", res)
+	token = res.AccessToken
+	w.Write(byt)
 }
 
-func getGroupList() map[string]string{
-	b, err := request(listUrl)
-	if err != nil {
-		log.Fatal("get group list err")
-	}
+func callbackHandler(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm() // Populates request.Form
+	code := r.Form.Get("code")
+	state := r.Form.Get("state")
+	fmt.Printf("Get code=%s, state=%s \n", code, state)
 
-	r := bytes.NewReader(b)
+	data := url.Values{}
+	data.Add("grant_type", "authorization_code")
+	data.Add("code", code)
+	data.Add("redirect_uri", callbackURL)
+	data.Add("client_id", clientID)
+	data.Add("client_secret", clientSecret)
 
-	// Load the HTML document
-	dom, err := goquery.NewDocumentFromReader(r)
-	if err != nil {
-		log.Fatal(err)
-	}
+	byt, err := apiCall("POST", apiToken, data, "")
+	fmt.Println("ret:", string(byt), " err:", err)
 
-	data := make(map[string]string)
-	// Find the link items
-	dom.Find("#kinditem_0").Find("a").Each(func(i int, s *goquery.Selection) {
-		// For each item found, get the band and title
-		title := s.Text()
-		url, _ := s.Attr("href")
-		data[title] = url
-	})
-
-	return data
+	res := newTokenResponse(byt)
+	fmt.Println("result:", res)
+	token = res.AccessToken
+	w.Write(byt)
 }
-
-func findTickersByGroup(groupList map[string]string, targetChan chan<- int, done chan <- bool) {
-	var wg sync.WaitGroup
-	wg.Add(len(groupList))
-
-	for _, u := range groupList {
-		u := u
-		go func() {
-			defer wg.Done()
-			stocks := getStocks(u)
-			findTargetTickers(stocks, targetChan)
-		}()
-	}
-
-	wg.Wait()
-	close(done)
-}
-
-func getStocks(u string) []int {
-	url := baseUrl + u
-	b, err := request(url)
-	if err != nil {
-		log.Fatal("get stock list err")
-	}
-
-	r := bytes.NewReader(b)
-
-	// Load the HTML document
-	dom, err := goquery.NewDocumentFromReader(r)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	var data []int
-	// Find the link items
-	dom.Find(".TableBox").Find("a").Each(func(i int, s *goquery.Selection) {
-		// For each item found, get the band and title
-		title := s.Text()
-
-		num, err := strconv.Atoi(title)
-		if err == nil {
-			data = append(data, num)
-		}
-	})
-
-	return data
-}
-
-func findTargetTickers(tickers []int, targetChan chan<- int) {
-	from := time.Now().Unix()
-	to := time.Now().AddDate(0, 0, -30).Unix()
-
-	for _, i := range tickers {
-		url := fmt.Sprintf(apiUrl, i, from, to)
-		res, err := request(url)
+func authHandler(w http.ResponseWriter, r *http.Request) {
+	check := func(err error) {
 		if err != nil {
-			log.Printf("[%d] request failed\n", i)
-			continue
-		}
-
-		var stockBody StockRespBody
-		if err := json.Unmarshal(res, &stockBody); err != nil {
-			log.Printf("[%d] json unmarshal failed\n", i)
-			continue
-		}
-
-		if len(stockBody.Data.C) < malen {
-			continue
-		}
-
-		todayClose := stockBody.Data.C[0]
-		closes := stockBody.Data.C[:malen]
-		bbL, _ := calBB(closes)
-
-		h := bbL + nearParam * bbL
-
-		if todayClose <= h {
-			targetChan <- i
+			log.Fatal(err)
 		}
 	}
-}
-
-func calBB(data []float64) (float64, float64) {
-	var sum float64
-	for _, c := range data {
-		sum += c
-	}
-	ma := sum / float64(malen)
-
-	var variance float64
-	for _, v := range data {
-		variance += math.Pow(v - ma, 2)
+	t, err := template.New("webpage").Parse(authTmpl)
+	check(err)
+	noItems := struct {
+		ClientID    string
+		CallbackURL string
+	}{
+		ClientID:    clientID,
+		CallbackURL: callbackURL,
 	}
 
-	sigma := math.Sqrt(variance / malen)
-	return ma - 2*sigma, ma + 2*sigma
-}
-
-
-func request(url string) ([]byte, error) {
-	var respBody []byte
-	var err error
-	resp, respErr := http.Get(url)
-
-	if respErr != nil || resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
-		// if we got a valid http response, try to read body so we can reuse the connection
-		// see https://golang.org/pkg/net/http/#Client.Do
-		if respErr == nil {
-			respBody, err = ioutil.ReadAll(resp.Body)
-			resp.Body.Close()
-			if err != nil {
-				return nil, errors.Wrap(err, "read response failed")
-			}
-		}
-	} else {
-		respBody, err = ioutil.ReadAll(resp.Body)
-		defer resp.Body.Close()
-		if err != nil {
-			return nil, errors.Wrap(err, "read response failed")
-		}
-	}
-
-	return respBody, nil
+	err = t.Execute(w, noItems)
+	check(err)
 }
