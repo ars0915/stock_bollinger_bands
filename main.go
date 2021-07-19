@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 
 	"github.com/ars0915/stock_bollinger_bands/bollinger_bands"
 )
@@ -33,6 +34,8 @@ func main() {
 	http.HandleFunc("/notify", notifyHandler)
 	http.HandleFunc("/auth", authHandler)
 	http.HandleFunc("/stock", stockHandler)
+	http.HandleFunc("/getTokens", getTokenHandler)
+	http.HandleFunc("/setTokens", setTokenHandler)
 	clientID = os.Getenv("ClientID")
 	clientSecret = os.Getenv("ClientSecret")
 	callbackURL = os.Getenv("CallbackURL")
@@ -42,20 +45,34 @@ func main() {
 	http.ListenAndServe(addr, nil)
 }
 
+func getTokenHandler(w http.ResponseWriter, r *http.Request) {
+	t := strings.Join(tokens, ",")
+	w.Write([]byte(t))
+}
+
+func setTokenHandler(w http.ResponseWriter, r *http.Request) {
+	t := r.Form.Get("tokens")
+	fmt.Printf("Get tokens=%s\n", t)
+
+	tokens = strings.Split(t, ",")
+}
+
 func stockHandler(w http.ResponseWriter, r *http.Request) {
 	targets := bollinger_bands.Run()
 
 	data := url.Values{}
 	data.Add("message", fmt.Sprintf("%v", targets))
 
+	var result []byte
 	for _, token := range tokens {
 		byt, err := apiCall("POST", apiNotify, data, token)
 		fmt.Println("ret:", string(byt), " err:", err)
 
 		res := newTokenResponse(byt)
 		fmt.Println("result:", res)
-		w.Write(byt)
+		result = append(result, byt...)
 	}
+	w.Write(result)
 }
 
 func notifyHandler(w http.ResponseWriter, r *http.Request) {
@@ -66,14 +83,16 @@ func notifyHandler(w http.ResponseWriter, r *http.Request) {
 	data := url.Values{}
 	data.Add("message", msg)
 
+	var result []byte
 	for _, token := range tokens {
 		byt, err := apiCall("POST", apiNotify, data, token)
 		fmt.Println("ret:", string(byt), " err:", err)
 
 		res := newTokenResponse(byt)
 		fmt.Println("result:", res)
-		w.Write(byt)
+		result = append(result, byt...)
 	}
+	w.Write(result)
 }
 
 func callbackHandler(w http.ResponseWriter, r *http.Request) {
