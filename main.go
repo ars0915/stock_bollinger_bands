@@ -51,6 +51,7 @@ func getTokenHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func setTokenHandler(w http.ResponseWriter, r *http.Request) {
+	r.ParseForm()
 	t := r.Form.Get("tokens")
 	fmt.Printf("Get tokens=%s\n", t)
 
