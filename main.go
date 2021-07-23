@@ -39,7 +39,7 @@ func main() {
 	clientID = os.Getenv("ClientID")
 	clientSecret = os.Getenv("ClientSecret")
 	callbackURL = os.Getenv("CallbackURL")
-	port := os.Getenv("PORT")
+	port := os.Getenv("ServePort")
 	fmt.Printf("ENV port:%s, cid:%s csecret:%s\n", port, clientID, clientSecret)
 	addr := fmt.Sprintf(":%s", port)
 	http.ListenAndServe(addr, nil)
