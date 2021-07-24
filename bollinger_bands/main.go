@@ -174,6 +174,14 @@ func findTargetTickers(tickers []int, targetChan chan<- int) {
 			continue
 		}
 
+		if calVol(stockBody.Data.V, 5) < 1000 {
+			continue
+		}
+
+		if k, d := calKD(stockBody.Data); k > 20 || d > 20 {
+			continue
+		}
+
 		todayClose := stockBody.Data.C[0]
 		closes := stockBody.Data.C[:malen]
 		bbL, _ := calBB(closes)
@@ -184,6 +192,64 @@ func findTargetTickers(tickers []int, targetChan chan<- int) {
 			targetChan <- i
 		}
 	}
+}
+
+func calVol(data []float64, day int) float64 {
+	var tmp float64
+	for _, v := range data {
+		tmp += v
+	}
+
+	return tmp / float64(day)
+}
+
+func calKD(data StockData) (k float64, d float64) {
+	k = float64(60)
+	d = float64(60)
+
+	for i := 9; i > 0; i-- {
+		//		log.Printf("====== [%d] =====\n", i)
+		low := data.L[i : i+9]
+		high := data.H[i : i+9]
+		l := min(low)
+		h := max(high)
+		c := data.C[i]
+
+		rsv := (c - l) / (h - l) * 100
+		//		log.Printf("low_range: %v, low: %f\n", low, l)
+		//		log.Printf("high_range: %v, high: %f\n", high, h)
+		//		log.Printf("close: %f, rsv: %f", c, rsv)
+
+		k = rsv/3 + float64(2)/float64(3)*k
+		//		log.Println("k =", k)
+
+		d = k/3 + float64(2)/float64(3)*d
+		//		log.Println("d =", d)
+	}
+
+	return
+}
+
+func min(values []float64) float64 {
+	min := values[0]
+	for _, v := range values {
+		if v < min {
+			min = v
+		}
+	}
+
+	return min
+}
+
+func max(values []float64) float64 {
+	max := values[0]
+	for _, v := range values {
+		if v > max {
+			max = v
+		}
+	}
+
+	return max
 }
 
 func calBB(data []float64) (float64, float64) {
