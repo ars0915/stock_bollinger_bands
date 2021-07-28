@@ -178,7 +178,7 @@ func findTargetTickers(tickers []int, targetChan chan<- int) {
 			continue
 		}
 
-		if k, d := calKD(stockBody.Data); k > 20 || d > 20 {
+		if k, d := calKD(stockBody.Data); k > 25 || d > 25 {
 			continue
 		}
 

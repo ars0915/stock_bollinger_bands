@@ -30,6 +30,7 @@ var callbackURL string
 var tokens []string
 
 func main() {
+	http.HandleFunc("/", healthHandler)
 	http.HandleFunc("/callback", callbackHandler)
 	http.HandleFunc("/notify", notifyHandler)
 	http.HandleFunc("/auth", authHandler)
@@ -40,9 +41,19 @@ func main() {
 	clientSecret = os.Getenv("ClientSecret")
 	callbackURL = os.Getenv("CallbackURL")
 	port := os.Getenv("ServePort")
+	xd := os.Getenv("PORT")
+	fmt.Println(xd)
+	if port == "" {
+		port = "8080"
+	}
+
 	fmt.Printf("ENV port:%s, cid:%s csecret:%s\n", port, clientID, clientSecret)
 	addr := fmt.Sprintf(":%s", port)
 	http.ListenAndServe(addr, nil)
+}
+
+func healthHandler(w http.ResponseWriter, r *http.Request) {
+
 }
 
 func getTokenHandler(w http.ResponseWriter, r *http.Request) {
