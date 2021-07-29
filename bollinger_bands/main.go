@@ -196,7 +196,7 @@ func findTargetTickers(tickers []int, targetChan chan<- int) {
 
 func calVol(data []float64, day int) float64 {
 	var tmp float64
-	for _, v := range data {
+	for _, v := range data[:day] {
 		tmp += v
 	}
 
