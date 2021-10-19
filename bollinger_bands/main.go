@@ -154,7 +154,7 @@ func getStocks(u string) []int {
 
 func findTargetTickers(tickers []int, targetChan chan<- int) {
 	from := time.Now().Unix()
-	to := time.Now().AddDate(0, 0, -30).Unix()
+	to := time.Now().AddDate(0, 0, -45).Unix()
 
 	for _, i := range tickers {
 		url := fmt.Sprintf(apiUrl, i, from, to)
