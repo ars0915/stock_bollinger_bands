@@ -170,15 +170,25 @@ func findTargetTickers(tickers []int, targetChan chan<- int) {
 			continue
 		}
 
-		if len(stockBody.Data.C) < malen {
+		lenC := len(stockBody.Data.C)
+		if lenC < malen {
+			log.Printf("[%d] data < %d day, url: %s", i, malen, url)
 			continue
 		}
 
-		if calVol(stockBody.Data.V, 5) < 1000 {
+		vol := calVol(stockBody.Data.V, 5)
+		if vol == 0 {
+			continue
+		}
+		k, d := calKD(stockBody.Data)
+
+		log.Printf("[%d] len(c): %d, vol: %.2f, k:%.2f, d: %.2f", i, lenC, vol, k, d)
+
+		if vol < 1000 {
 			continue
 		}
 
-		if k, d := calKD(stockBody.Data); k > 25 || d > 25 {
+		if k > 25 || d > 25 {
 			continue
 		}
 
@@ -196,6 +206,9 @@ func findTargetTickers(tickers []int, targetChan chan<- int) {
 
 func calVol(data []float64, day int) float64 {
 	var tmp float64
+	if len(data) < day {
+		return 0
+	}
 	for _, v := range data[:day] {
 		tmp += v
 	}
